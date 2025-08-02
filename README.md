@@ -1,6 +1,6 @@
 # [ёRadio](https://github.com/e2002/yoradio) mod based on version [0.9.434](https://github.com/e2002/yoradio/releases/tag/v0.9.434)
 ## Made on WROVER with 4MB spram + PCM5102 + ILI9341 + WROOM. Arduino IDE 1.8.19 + libraries as stock
-### Supports ILI9341 and ST7735 (144GREENTAB) screens but without batteries. 
+### Supports ILI9341 and ST7735 (144GREENTAB) screens but last without batteries. 
 I don't have any other displays.
 
 ### All stock functions plus additionally:
