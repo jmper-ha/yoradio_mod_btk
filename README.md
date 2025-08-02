@@ -3,6 +3,8 @@
 ### Supports ILI9341 and ST7735 (144GREENTAB) screens but last without batteries. 
 I don't have any other displays.
 
+### Need update SPIFFS. Need replase Adafruit_GFX_Library glcdfont.c with /fonts/glcdfont_mod.c
+
 ### All stock functions plus additionally:
 
 
