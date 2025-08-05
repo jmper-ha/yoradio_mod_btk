@@ -15,7 +15,7 @@
 #include "aac_decoder/aac_decoder.h"
 #include "flac_decoder/flac_decoder.h"
 #include "../core/config.h"
-
+#include "../core/uart_app.h"
 #ifdef SDFATFS_USED
 fs::SDFATFS SD_SDFAT;
 #endif
@@ -4104,10 +4104,15 @@ void Audio::showstreamtitle(const char* ml) {
 //---------------------------------------------------------------------------------------------------------------------
 void Audio::showCodecParams(){
     // print Codec Parameter (mp3, aac) in audio_info()
-
+    
     AUDIO_INFO("Channels: %i", getChannels());
     AUDIO_INFO("SampleRate: %i", getSampleRate());
     AUDIO_INFO("BitsPerSample: %i", getBitsPerSample());
+
+    char uart_buf[8];
+    sprintf(uart_buf,"8:%d",getSampleRate());
+    uart_send_data(uart_buf);
+
     if(getBitRate()) {AUDIO_INFO("BitRate: %i", getBitRate());}
     else             {AUDIO_INFO("BitRate: N/A");}
 
