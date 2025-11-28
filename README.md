@@ -30,7 +30,12 @@ When external bt speaker connected, the main **DAC** goes silent and bt icon app
 On the **PCM5102** board, you need to remove the H3L jumper so that the mute works from pin 3 (xsmt)
 
 ## Bluetooth sink
-The Bluetooth receiver is built on the same module as the transmitter. You can enable synk mode in **Settings** -> **Bluetooth** -> **Enable bluetoots sink mode**.  You can also set the name of device there.<img src="images/bt_sink_setup.png"> Switching modes is possible both via the web and the encoder. <img src="images/bt_sink.png">If the player supports metadata, it will be transmitted to the screen. <img src="images/bt_sink_displ.jpeg">
+The Bluetooth receiver is built on the same module as the transmitter. You can enable synk mode in **Settings** -> **Bluetooth** -> **Enable bluetoots sink mode**.  You can also set the name of device there.
+<img src="images/bt_sink_setup.png"> 
+Switching modes is possible both via the web and the encoder. 
+<img src="images/bt_sink.png">
+If the player supports metadata, it will be transmitted to the screen. 
+<img src="images/bt_sink_displ.jpeg">
 
 [source code and binaries](https://github.com/jmper-ha/bt_source)
 
