@@ -63,19 +63,4 @@ const MoveConfig    clockMove     PROGMEM = { 0, 94, -1 };
 const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 48, 122 };
 const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 48, 122 };
 
-/*  MOD   */
-const WidgetConfig  rssitxtConf   PROGMEM = { TFT_FRAMEWDT+13, 108, 1, WA_RIGHT };
-
-const WidgetConfig  btConf        PROGMEM = { TFT_FRAMEWDT, 26, 1, WA_RIGHT };
-const WidgetConfig  batConf       PROGMEM = { 74, 97, 2, WA_RIGHT };
-const WidgetConfig  battxtConf    PROGMEM = { 74+38, 97+3, 1, WA_RIGHT };
-
-const char         numFavFmt[]    PROGMEM = "#%d";
-const char        rssitxtFmt[]    PROGMEM = "%d";
-
-#include "../../core/options.h"
-#ifdef BATTERY_SHOW_ON
-    #undef BATTERY_SHOW_ON
-#endif
-
 #endif

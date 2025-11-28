@@ -210,7 +210,6 @@ void DspCore::setNumFont(){
 
 void DspCore::drawQR(char* txt, bool inv){
   QRCode qrcode;
-//  dsp.clearClock();
   uint8_t qrcodeData[qrcode_getBufferSize(VER)];
   qrcode_initText(&qrcode, qrcodeData, VER, ECC, txt);
   uint8_t m = height()/qrcode.size;
@@ -227,4 +226,5 @@ void DspCore::drawQR(char* txt, bool inv){
   }
   endWrite();
 }
+
 #endif

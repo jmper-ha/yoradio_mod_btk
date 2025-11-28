@@ -1,6 +1,58 @@
 #ifndef utf8RusGFX_h
 #define  utf8RusGFX_h
+#if 1
+char* DspCore::utf8Rus(const char* str, bool uppercase) {
+    static char strn[BUFLEN];
+    int i = 0, j = 0;
+    while (str[i] && j < BUFLEN - 1) {
+        // UTF-8: кириллица
+        if ((uint8_t)str[i] == 0xD0 && str[i+1]) {
+            uint8_t next = (uint8_t)str[i+1];
+            if (next >= 0x90 && next <= 0xAF) { // А-Я
+                strn[j++] = next + 0x30;
+            } else if(next >= 0xB0 && next <= 0xBF) { // а-п
+                strn[j++] = next + (uppercase?0x10:0x30);
+            } else if (next == 0x81) { // Ё
+                strn[j++] = 0xA8;
+            }
+            i += 2;
+            continue;
+        } else if ((uint8_t)str[i] == 0xD1 && str[i+1]) {
+            uint8_t next = (uint8_t)str[i+1];
+            if (next >= 0x80 && next <= 0x8F) { // р-я
+                strn[j++] = next + (uppercase?0x50:0x70);
+            } else if (next == 0x91) { // ё
+                strn[j++] = (uppercase?0xA8:0xB8);
+            }
+            i += 2;
+            continue;
+        // fix for coding ISO-8859-1 => win-1251
+        } else if ((uint8_t)str[i] == 0xC3 && str[i+1]) {
+            uint8_t next = (uint8_t)str[i+1];
+            if (next >= 0x80 && next <= 0x9F) { // А-Я
+              strn[j++] = next + 0x40;
+            } else if (next >= 0xA0 && next <= 0xBF) { // а-я
+              strn[j++] = next + (uppercase?0x20:0x40);
+            }
+            i += 2;
+            continue;            
+        // fix UTF-8 3 bytes point
+        } else if ((uint8_t)str[i] >= 0xE0 && str[i+1] && str[i+2]) {
+            strn[j++] = 0x20;
+            i += 3;
+            continue;            
+        } else if ((uint8_t)str[i] <= 0x7F) {
+        // Не кириллица — копируем как есть
+            char ch = str[i++];
+            if ((ch >= 'a' && ch <= 'z') && uppercase) ch = ch - 0x20;
+            strn[j++] = ch;
+        }
+    }
+    strn[j] = 0;
+    return strn;
+} 
 
+#else
 char* DspCore::utf8Rus(const char* str, bool uppercase) {
   int index = 0;
   static char strn[BUFLEN];
@@ -75,5 +127,5 @@ char* DspCore::utf8Rus(const char* str, bool uppercase) {
   }
   return strn;
 }
-
+#endif
 #endif

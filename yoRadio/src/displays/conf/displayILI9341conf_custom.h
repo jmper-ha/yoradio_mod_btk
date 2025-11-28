@@ -41,7 +41,7 @@ const WidgetConfig bitrateConf    PROGMEM = { 70, 191, 1, WA_LEFT };
 const WidgetConfig voltxtConf     PROGMEM = { 0, 214, 1, WA_CENTER };
 const WidgetConfig  iptxtConf     PROGMEM = { TFT_FRAMEWDT, 214, 1, WA_LEFT };
 const WidgetConfig   rssiConf     PROGMEM = { TFT_FRAMEWDT, 214-6, 2, WA_RIGHT };
-const WidgetConfig numConf        PROGMEM = { 0, 120+30, 52, WA_CENTER };
+const WidgetConfig  numConf       PROGMEM = { 0, 120+30, 52, WA_CENTER };
 const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT, 66, 2, WA_CENTER };
 const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT, 90, 2, WA_CENTER };
 const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 130, 2, WA_CENTER };
@@ -67,5 +67,24 @@ const char        bitrateFmt[]    PROGMEM = "%d kBs";
 const MoveConfig    clockMove     PROGMEM = { 0, 176, -1 };
 const MoveConfig   weatherMove    PROGMEM = { 8, 97, MAX_WIDTH };
 const MoveConfig   weatherMoveVU  PROGMEM = { 70, 97, 250 };
+
+/*  MOD   */
+#define QR_DISP_MOD
+#ifdef BTN_QR
+#include "../../core/qrcode.h"
+#define ECC ECC_QUARTILE
+#define VER 4
+#endif
+
+#define RSSI_TXT_MOD
+const WidgetConfig  rssitxtConf   PROGMEM = { TFT_FRAMEWDT+28, 214, 1, WA_RIGHT };
+const char          rssitxtFmt[]  PROGMEM = "%d dB";
+
+#define BT_DISP_MOD
+const WidgetConfig  btConf        PROGMEM = { TFT_FRAMEWDT, 190, 2, WA_CENTER };
+
+#define BT_BAT_MOD
+const WidgetConfig  batConf       PROGMEM = { 74, 197, 2, WA_RIGHT };
+const WidgetConfig  battxtConf    PROGMEM = { 74+38, 197+3, 1, WA_RIGHT };
 
 #endif

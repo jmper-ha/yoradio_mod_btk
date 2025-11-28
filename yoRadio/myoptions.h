@@ -11,16 +11,47 @@
 
 /* !!! Do not be alarmed, all right, the default values ​​are not included in this file !!! */
 
-#define DSP_MODEL           DSP_ILI9341
+//#define DSP_MODEL           DSP_ST7735
+//#define DTYPE               INITR_144GREENTAB //INITR_BLACKTAB//
+
+// 0 - S3
+//Board: ESP32S3 Dev Module
+
+
+
+// 1 - WROVER
+// Board: ESP32 Dev Module
+// Upload Speed 921600
+// CPU Frequency 240MHz
+// Flash Frequency 80MHz
+// Flash Mode QIO
+// Flash Size 4Mb
+// Partition Scheme Minimal SPIFFS
+// PSRAM Enabled
+
+#define ESP_MODEL 1
+
+#if ESP_MODEL
+//ESP32-WROVER / WROOM
 #define L10N_LANGUAGE       RU
-#define TFT_DC              2
+#define DSP_MODEL           DSP_ILI9341
 #define TFT_CS              21
+#define TFT_RST             -1
+#define TFT_DC              2
+#define TFT_MOSI            23
+#define TFT_SCLK            18
 #define BRIGHTNESS_PIN      22
+  
 #define ENC_BTNR            36
 #define ENC_BTNL            34
 #define ENC_BTNB            39
 #define ENC_INTERNALPULLUP  false
 
+#define I2S_DOUT            27
+#define I2S_BCLK            26
+#define I2S_LRC             25
+
+//MOD
 #define UART_TX             4
 #define UART_RX             5
 #define BTN_QR              35
@@ -32,4 +63,45 @@
 #define BTN_F6              0
 #define BUZZER              13
 #define BATTERY_SHOW_ON
+
+#else
+
+//ESP32-S3
+#define DSP_MODEL           DSP_ILI9341
+#define L10N_LANGUAGE       RU
+#define LED_BUILTIN_S3      48
+#define USE_BUILTIN_LED     false
+
+#define TFT_CS              10
+#define TFT_RST             -1
+#define TFT_DC              47
+#define TFT_MOSI            11
+#define TFT_SCLK            12
+#define BRIGHTNESS_PIN      2
+
+#define ENC_BTNR            5
+#define ENC_BTNL            7
+#define ENC_BTNB            6
+#define ENC_INTERNALPULLUP  false
+
+#define I2S_DOUT            16
+#define I2S_BCLK            18
+#define I2S_LRC             17
+
+#define SDC_CS              1
+#define SD_SPIPINS          41, 40, 42    /* SCK, MISO, MOSI */
+//MOD
+#define UART_TX             38
+#define UART_RX             39
+#define BTN_QR              15
+#define BTN_F1              45
+#define BTN_F2              21
+#define BTN_F3              46
+#define BTN_F4              9
+#define BTN_F5              8
+#define BTN_F6              3
+#define BUZZER              14
+#define BATTERY_SHOW_ON
+#endif
+
 #endif

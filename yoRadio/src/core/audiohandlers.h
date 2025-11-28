@@ -54,8 +54,8 @@ void audio_showstation(const char *info) {
   //config.setTitle(p?info:config.station.name);
   if(player.remoteStationName){
     config.setStation(p?info:config.station.name);
-    display.putRequest(NEWSTATION);
-    netserver.requestOnChange(STATION, 0);
+//    display.putRequest(NEWSTATION);
+//    netserver.requestOnChange(STATION, 0);
   }
 }
 
@@ -78,8 +78,10 @@ void audio_error(const char *info) {
 
 void audio_id3artist(const char *info){
   if(printable(info)) config.setStation(info);
+  else{
   display.putRequest(NEWSTATION);
   netserver.requestOnChange(STATION, 0);
+  }
 }
 
 void audio_id3album(const char *info){
@@ -120,7 +122,7 @@ void audio_eof_stream(const char *info){
   if(!player.resumeAfterUrl) return;
   if (config.getMode()==PM_WEB){
     player.sendCommand({PR_PLAY, config.lastStation()});
-  }else{
+  }else if (config.getMode()==PM_SDCARD){
     player.setResumeFilePos( config.sdResumePos==0?0:config.sdResumePos-player.sd_min);
     player.sendCommand({PR_PLAY, config.lastStation()});
   }

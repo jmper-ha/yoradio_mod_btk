@@ -67,6 +67,7 @@ const char const_DlgNextion[]    PROGMEM = "NEXTION";
 const char const_getWeather[]    PROGMEM = "";
 const char  const_waitForSD[]    PROGMEM = "ИНДЕКС SD";
 const char const_FavAlready[]    PROGMEM = "уже на:";
+const char     const_BTSink[]    PROGMEM = "BT Mode";
 
 const char        apNameTxt[]    PROGMEM = "ТОЧКА ДОСТУПА";
 const char        apPassTxt[]    PROGMEM = "ПАРОЛЬ";

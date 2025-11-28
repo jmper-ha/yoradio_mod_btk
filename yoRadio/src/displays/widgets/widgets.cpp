@@ -283,9 +283,9 @@ void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor
   _bands = bands;
   _canvas = new Canvas(_bands.width * 2 + _bands.space, _bands.height);
 }
-
-
+//static u_int32_t vu_cnt = 0;
 void VuWidget::_draw(){
+//  if(++vu_cnt % 200 == 0) Serial.printf("VuWidget::_draw() _active %d _locked %d\n",_active, _locked);
   if(!_active || _locked) return;
 #if !defined(USE_NEXTION) && I2S_DOUT==255
 /*  static uint8_t cc = 0;
@@ -302,8 +302,8 @@ void VuWidget::_draw(){
   
   uint8_t L = (vulevel >> 8) & 0xFF;
   uint8_t R = vulevel & 0xFF;
-  
   bool played = player.isRunning();
+//  if(vu_cnt % 100 == 0) Serial.printf("VuWidget::_draw() L %d R %d dim %d thrhld %d played %d\n",L, R,dimension,config.vuThreshold,played);
   if(played){
     measL=(L>=measL)?measL + _bands.fadespeed:L;
     measR=(R>=measR)?measR + _bands.fadespeed:R;
@@ -499,6 +499,7 @@ void BitrateWidget::_draw(){
     case BF_FLAC: dsp.print("FLC"); break;
     case BF_OGG:  dsp.print("OGG"); break;
     case BF_WAV:  dsp.print("WAV"); break;
+    case BF_SBC:  dsp.print("SBC"); break;
     default:                        break;
   }
 }

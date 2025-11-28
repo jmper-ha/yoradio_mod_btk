@@ -19,7 +19,14 @@
 #define PLERR_LN        64
 #define SET_PLAY_ERROR(...) {char buff[512 + 64]; sprintf(buff,__VA_ARGS__); setError(buff);}
 
-enum playerRequestType_e : uint8_t { PR_PLAY = 1, PR_STOP = 2, PR_PREV = 3, PR_NEXT = 4, PR_VOL = 5, PR_CHECKSD = 6, PR_VUTONUS = 7 };
+enum playerRequestType_e : uint8_t {PR_PLAY = 1, 
+                                    PR_STOP = 2, 
+                                    PR_PREV = 3, 
+                                    PR_NEXT = 4, 
+                                    PR_VOL = 5, 
+                                    PR_CHECKSD = 6, 
+                                    PR_VUTONUS = 7,
+                                    PR_VUONLY = 8};
 struct playerRequestParams_t
 {
   playerRequestType_e type;
@@ -32,12 +39,14 @@ class Player: public Audio {
   private:
     uint32_t    _volTicks;   /* delayed volume save  */
     bool        _volTimer;   /* delayed volume save  */
+    bool        _volTimerSend;   /* delayed volume send  */
     uint32_t    _resumeFilePos;
     plStatus_e  _status;
     char        _plError[PLERR_LN];
   private:
     void _stop(bool alreadyStopped = false);
     void _play(uint16_t stationId);
+    void _onlyVU();
     void _loadVol(uint8_t volume);
   public:
     bool lockOutput = true;
@@ -49,6 +58,8 @@ class Player: public Audio {
   public:
     Player();
     void init();
+//    void reinit();
+    void changePinout();
     void loop();
     void initHeaders(const char *file);
     void setError(const char *e);
@@ -65,10 +76,13 @@ class Player: public Audio {
     void toggle();
     void stepVol(bool up);
     void setVol(uint8_t volume);
+    void setVolremote(uint8_t volume);
     uint8_t volToI2S(uint8_t volume);
     void stopInfo();
     void setOutputPins(bool isPlaying);
     void setResumeFilePos(uint32_t pos) { _resumeFilePos = pos; }
+    void set_run(bool run) {set_running(run);}//_status = run?PLAYING:STOPPED;}
+    void set_status(uint8_t stat);
 };
 
 extern Player player;

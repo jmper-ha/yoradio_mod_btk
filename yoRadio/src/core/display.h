@@ -87,6 +87,7 @@ class Display {
     void _set_bt(bool s);
     void _updBatt(uint16_t p);
     void _upd_charge();
+    void _showCfmNum(uint32_t id);
 };
 
 #else

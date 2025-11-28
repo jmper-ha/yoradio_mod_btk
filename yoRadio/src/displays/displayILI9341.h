@@ -6,11 +6,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 
-#ifdef BTN_QR
-#include "../core/qrcode.h"
-#define ECC ECC_QUARTILE
-#define VER 4
-#endif
 #if CLOCKFONT_MONO
   #include "fonts/DS_DIGI42pt7b_mono.h"        // https://tchapi.github.io/Adafruit-GFX-Font-Customiser/
 #else

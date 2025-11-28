@@ -29,6 +29,8 @@ NetServer netserver;
 AsyncWebServer webserver(80);
 AsyncWebSocket websocket("/ws");
 AsyncUDP udp;
+char* ear_data;
+uint8_t* image_handle = NULL;
 
 String processor(const String& var);
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
@@ -267,7 +269,7 @@ void NetServer::processQueue(){
                                                               #ifndef HIDE_VU
                                                                 act += F("\"group_vu\",");
                                                               #endif
-            if (BRIGHTNESS_PIN != 255 || nxtn || dbgact)                act += F("\"group_brightness\",");
+            if (BRIGHTNESS_PIN != 255 || nxtn || dbgact)        act += F("\"group_brightness\",");
             if (DSP_CAN_FLIPPED || dbgact)                      act += F("\"group_tft\",");
             if (TS_MODEL != TS_MODEL_UNDEFINED || dbgact)       act += F("\"group_touch\",");
             if (DSP_MODEL == DSP_NOKIA5110)                     act += F("\"group_nokia\",");
@@ -283,7 +285,7 @@ void NetServer::processQueue(){
                                                                 act = act.substring(0, act.length() - 1);
           sprintf (wsbuf, "{\"act\":[%s]}", act.c_str());
 #ifdef ISUART
-          uart_send_data(APP_UART_GET_STATUS);
+          uart_send_param(APP_UART_SEND_GET_STATUS,0);
 #endif
           break;
         }
@@ -296,7 +298,8 @@ void NetServer::processQueue(){
           requestOnChange(BALANCE, clientId); 
           requestOnChange(BITRATE, clientId); 
           requestOnChange(MODE, clientId); 
-          requestOnChange(SDINIT, clientId);
+//          requestOnChange(SDINIT, clientId);
+          requestOnChange(HWINIT, clientId);
           requestOnChange(GETPLAYERMODE, clientId); 
           if (config.getMode()==PM_SDCARD) { requestOnChange(SDPOS, clientId); requestOnChange(SDLEN, clientId); requestOnChange(SDSNUFFLE, clientId); } 
           return; 
@@ -363,15 +366,26 @@ void NetServer::processQueue(){
       case MODE:          sprintf (wsbuf, "{\"mode\": \"%s\"}", player.status() == PLAYING ? "playing" : "stopped"); telnet.info(); break;
       case EQUALIZER:     sprintf (wsbuf, "{\"bass\": %d, \"middle\": %d, \"trebble\": %d}", config.store.bass, config.store.middle, config.store.trebble); break;
       case BALANCE:       sprintf (wsbuf, "{\"balance\": %d}", config.store.balance); break;
-      case SDINIT:        sprintf (wsbuf, "{\"sdinit\": %d}", SDC_CS!=255); break;
-      case GETPLAYERMODE: sprintf (wsbuf, "{\"playermode\": \"%s\"}", config.getMode()==PM_SDCARD?"modesd":"modeweb"); break;
-      #ifdef USE_SD
+//      case SDINIT:        sprintf (wsbuf, "{\"sdinit\": %d}", SDC_CS!=255); break;
+//      case GETPLAYERMODE: sprintf (wsbuf, "{\"playermode\": \"%s\"}", config.getMode()==PM_WEB?"modeweb":config.getMode()==PM_SDCARD?"modesd":"modebt"); break;
+      case GETPLAYERMODE: sprintf (wsbuf, "{\"playermode\": \"%s\"}", config.web_mode[config.getMode()]); break;
+      #if defined USE_SD || defined ISUART
         case CHANGEMODE:    config.changeMode(newConfigMode); return; break;
       #endif
       #ifdef ISUART
-        case GETEIRS:       sprintf (wsbuf,"%s", get_uart_rx_data()); break;
+//        case GETEIRS:       sprintf (wsbuf,"%s", get_uart_rx_data()); break; //ear_data
+        case GETEIRS:       sprintf (wsbuf,"%s", ear_data); break;
       #endif
       case GETFAVUPD:       sprintf (wsbuf,"%s", config.updFavLine()); break;
+      case GETBTSINKMODE:   sprintf (wsbuf, "{\"btsinkmode\":%d,\"btsinkname\":\"%s\"}",config.store.bt_sink_mode,config.store.bt_sinkname); 
+                            break;
+      case HWINIT:          {
+                            bool web = (network.status == CONNECTED);
+                            bool sd = SDC_CS!=255;
+                            bool bt = UART_TX!=255 && config.store.bt_sink_mode;
+                            uint8_t hw = (uint8_t)web+(uint8_t)sd+(uint8_t)bt;
+                            sprintf (wsbuf, "{\"hwinit\": %d,\"web\": %d,\"sd\": %d,\"bt\": %d}", hw,web,sd,bt);
+                            break;}
       default:          break;
     }
     if (strlen(wsbuf) > 0) {
@@ -759,12 +773,6 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
         config.initPlaylist();
         return;
       }
-#ifdef ISUART
-      if (strcmp(cmd, "bt_cmd") == 0) {
-          Serial.printf("### BT_CMD ###  val=%s send %d bytes \n", val,uart_send_data(val));
-//          uart_send_data(val);
-      }
-#endif
       if (strcmp(cmd, "submitplaylistdone") == 0) {
 #ifdef MQTT_ROOT_TOPIC
         //mqttPublishPlaylist();
@@ -791,6 +799,26 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
         config.ircodes.irVals[config.irindex][cl] = 0;
       }
 #endif
+/////////// MOD
+#ifdef ISUART
+      if (strcmp(cmd, "bt_cmd") == 0) {
+          Serial.printf("### BT_CMD ###  val=%s send %d bytes \n", val,uart_send_data(val));
+      }
+#endif
+      if (strcmp(cmd, "getbtsink") == 0) { requestOnChange(GETBTSINKMODE, clientId);   return; }
+      if (strcmp(cmd, "bt_sink_mode") == 0) {
+        bool valb = static_cast<bool>(atoi(val));
+        config.saveValue(&config.store.bt_sink_mode, valb);
+        if(!valb && config.getMode()==PM_BTSINK) config.changeMode();
+        return;          
+      }
+      if((strcmp(cmd, "bt_sinknamesave") == 0)&&(strlen(val)>0)&&(strlen(val)<25)) {
+        config.saveValue(config.store.bt_sinkname, val, MDNS_LENGTH);
+        if(config.getMode()==PM_BTSINK){
+          uart_send_param(APP_UART_SEND_REINIT_CMD,APP_MODE_SINK);
+        }
+        return;
+      }
     }
   }
 }
@@ -948,8 +976,10 @@ void handleHTTPArgs(AsyncWebServerRequest * request) {
   }
   if (network.status == CONNECTED) {
     bool commandFound=false;
-    if (request->hasArg("start")) { player.sendCommand({PR_PLAY, config.lastStation()}); commandFound=true; }
-    if (request->hasArg("stop")) { player.sendCommand({PR_STOP, 0}); commandFound=true; }
+//    if (request->hasArg("start")) { player.sendCommand({PR_PLAY, config.lastStation()}); commandFound=true; }
+//    if (request->hasArg("stop")) { player.sendCommand({PR_STOP, 0}); commandFound=true; }
+    if (request->hasArg("start")) { player.toggle(); commandFound=true; }
+    if (request->hasArg("stop")) { player.toggle(); commandFound=true; }
     if (request->hasArg("toggle")) { player.toggle(); commandFound=true; }
     if (request->hasArg("prev")) { player.prev(); commandFound=true; }
     if (request->hasArg("next")) { player.next(); commandFound=true; }
@@ -1059,6 +1089,24 @@ void handleHTTPArgs(AsyncWebServerRequest * request) {
   }
 }
 
-void uart_sent_net(){
+void NetServer::uart_sent_net(char* d){
+  ear_data = d;
   netserver.requestOnChange(GETEIRS, 0);
+}
+
+void NetServer::set_art_image(size_t size){
+  image_handle = (uint8_t *)realloc(image_handle,size);
+  if(image_handle){
+    Serial.printf("\tReallocated memory. now %ld\n", size);
+  } else {
+    Serial.printf("\tReallocation memory fail\n");
+  }
+
+}
+
+void NetServer::free_art_image(){
+  if(image_handle){ 
+    free(image_handle);
+    image_handle = NULL;
+  }
 }

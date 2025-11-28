@@ -57,7 +57,7 @@
 				    </ul>
 		      </div>
 		      <div id="volnav">
-		        <div id="modeline"><span id="modeweb" class="modeitem" data-name="web">Web</span><span id="modesd" data-name="sd" class="modeitem">SD</span></div>
+		        <div id="modeline"></div>
 		        <input type="range" id="volrange" class="slider" name="volume" data-slaveid="volinfo" min="0" max="254" value="0">
 		      </div>
 		      <div id="sdnav" class="hidden">
@@ -75,6 +75,7 @@
 		      </div>
 		      <ul id="playlist">
 		      </ul>
+          <div id="bt_img" style="text-align:center;margin-top:100px"><img src="bt.png"></div>
         </div><!--equalizerwrap-->
       </div><!--player-->
       <div id="pleditorwrap" class="hidden">
@@ -87,6 +88,7 @@
               <input class="pleinput plename" type="text" value="" maxlength="140" />
               <input class="pleinput pleurl" type="text" value="" maxlength="140" />
               <input class="pleinput pleovol" type="number" min="-30" max="30" step="1" value="0" />
+              <input class="pleinput pleovol" type="text" list="options" />
             </li>
           </ol><!--pleditorcontent-->
           <div class="formbuttons">
@@ -99,7 +101,7 @@
         </div><!--pleditor-->
       </div><!--pleditorwrap-->
     </div><!--playerwrap-->
-    <div id="copy">powered by <a target="_blank" href="https://github.com/e2002/yoradio/">ёRadio</a> | v%VERSION% | MOD_BTK</div>
+    <div id="copy">powered by <a target="_blank" href="https://github.com/e2002/yoradio/">ёRadio</a> | v%VERSION%</div>
   </div>
   <script src="script.js?%VERSION%"></script>
   <script src="dragpl.js?%VERSION%"></script>

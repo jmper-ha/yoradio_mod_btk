@@ -5,6 +5,7 @@
 #include "display.h"
 #include "sdmanager.h"
 #include "netserver.h"
+#include "uart_app.h"
 
 Player player;
 QueueHandle_t playerQueue;
@@ -44,9 +45,12 @@ void Player::init() {
 #endif
   if(MUTE_PIN!=255) pinMode(MUTE_PIN, OUTPUT);
   #if I2S_DOUT!=255
-    #if !I2S_INTERNAL
-      setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    #endif
+    changePinout();
+//    #if !I2S_INTERNAL
+//      if(config.getMode()==PM_BTSINK) setPinout(I2S_BCLK, I2S_LRC, I2S_PIN_NO_CHANGE, I2S_DOUT);
+//      else setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+////      setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+//    #endif
   #else
     SPI.begin();
     if(VS1053_RST>0) ResetChip();
@@ -67,6 +71,25 @@ void Player::init() {
   Serial.println("done");
 }
 
+void Player::changePinout(){
+  #if !I2S_INTERNAL
+    if(config.getMode()==PM_BTSINK) setPinout(I2S_BCLK, I2S_LRC, -1, I2S_DOUT); 
+    else setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  #endif
+}
+/*
+void Player::reinit(){
+//  vTaskDelay(pdMS_TO_TICKS(500));
+  // clear bit_remote
+  uart_send_param(APP_UART_SEND_REINIT_CMD, APP_MODE_IDLE);
+  i2s_driver_uninstall((i2s_port_t)Audio::getI2sPort());
+  // wait bit_remote
+  
+  Audio::init();
+  changePinout();
+  // sel bit_local
+}
+*/
 void Player::sendCommand(playerRequestParams_t request){
   if(playerQueue==NULL) return;
   xQueueSend(playerQueue, &request, PLQ_SEND_DELAY);
@@ -93,7 +116,6 @@ void Player::setError(const char *e){
 void Player::_stop(bool alreadyStopped){
   log_i("%s called", __func__);
   if(config.getMode()==PM_SDCARD && !alreadyStopped) config.sdResumePos = player.getFilePos();
-  _status = STOPPED;
   setOutputPins(false);
   if(!hasError()) config.setTitle((display.mode()==LOST || display.mode()==UPDATING)?"":const_PlStopped);
   config.station.bitrate = 0;
@@ -107,6 +129,7 @@ void Player::_stop(bool alreadyStopped){
   setDefaults();
   if(!alreadyStopped) stopSong();
   if(!lockOutput) stopInfo();
+  _status = STOPPED;
   if (player_on_stop_play) player_on_stop_play();
   pm.on_stop_play();
 }
@@ -131,7 +154,11 @@ void Player::loop() {
   playerRequestParams_t requestP;
   if(xQueueReceive(playerQueue, &requestP, isRunning()?PL_QUEUE_TICKS:PL_QUEUE_TICKS_ST)){
     switch (requestP.type){
-      case PR_STOP: _stop(); break;
+      case PR_STOP: {
+          _stop(); 
+//          if(config.getMode()==PM_BTSINK) Audio::setVU_Only();
+          break;
+      }
       case PR_PLAY: {
         if (requestP.payload>0) {
           config.setLastStation((uint16_t)requestP.payload);
@@ -159,6 +186,8 @@ void Player::loop() {
       #endif
       case PR_VUTONUS:
         if(config.vuThreshold>10) config.vuThreshold -=10;
+        break;
+      case PR_VUONLY: _onlyVU(); break;
       default: break;
     }
   }
@@ -169,7 +198,12 @@ void Player::loop() {
       config.saveVolume();
       _volTimer=false;
     }
-  }
+    if(((millis()-_volTicks)>300)&&(_volTimerSend)){
+      if((config.getMode()==PM_BTSINK)||(config.bt_spkr_connected))
+        uart_send_param(APP_UART_SEND_VOLUME,config.store.volume);
+      _volTimerSend=false;
+    }
+  } 
 #ifdef MQTT_ROOT_TOPIC
   if(strlen(burl)>0){
     browseUrl();
@@ -192,12 +226,15 @@ void Player::_play(uint16_t stationId) {
   //display.putRequest(PSTOP);
   config.screensaverTicks=SCREENSAVERSTARTUPDELAY;
   config.screensaverPlayingTicks=SCREENSAVERSTARTUPDELAY;
-  if(config.getMode()!=PM_SDCARD) {
+  if(config.getMode()==PM_WEB) {
   	display.putRequest(PSTOP);
   }
   setOutputPins(false);
   //config.setTitle(config.getMode()==PM_WEB?const_PlConnect:"");
-  config.setTitle(config.getMode()==PM_WEB?const_PlConnect:"[next track]");
+//  config.setTitle(config.getMode()==PM_WEB?const_PlConnect:"[next track]");
+  if(config.getMode()==PM_WEB) config.setTitle(const_PlConnect);
+  if(config.getMode()==PM_SDCARD) config.setTitle("[next track]");
+//  if(config.getMode()==PM_BTSINK) config.setTitle("[bt]");
   config.station.bitrate=0;
   config.setBitrateFormat(BF_UNCNOWN);
   config.loadStation(stationId);
@@ -211,7 +248,7 @@ void Player::_play(uint16_t stationId) {
   bool isConnected = false;
   if(config.getMode()==PM_SDCARD && SDC_CS!=255){
     isConnected=connecttoFS(sdman,config.station.url,config.sdResumePos==0?_resumeFilePos:config.sdResumePos-player.sd_min);
-  }else {
+  }else if(config.getMode()==PM_WEB){
     config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_WEB));
   }
   if(config.getMode()==PM_WEB) isConnected=connecttohost(config.station.url);
@@ -235,6 +272,47 @@ void Player::_play(uint16_t stationId) {
     SET_PLAY_ERROR("Error connecting to %s", config.station.url);
     _stop(true);
   };
+}
+void Player::_onlyVU(){
+//  Serial.printf("%s called\n", __func__);
+  setError("");
+  remoteStationName = false;
+  config.setDspOn(1);
+  config.vuThreshold = 4;
+  config.screensaverTicks=SCREENSAVERSTARTUPDELAY;
+  config.screensaverPlayingTicks=SCREENSAVERSTARTUPDELAY;
+ 	display.putRequest(PSTOP);
+  setOutputPins(false);
+//  config.setStation(const_BTSink);
+//  config.station.bitrate=441;
+//  config.setBitrateFormat(BF_SBC);
+  _loadVol(config.store.volume);
+//  display.putRequest(DBITRATE);
+//  display.putRequest(NEWSTATION);
+  netserver.requestOnChange(STATION, 0);
+  netserver.loop();
+  netserver.loop();
+  config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_BTSINK));
+  setVU_Only();
+  _status = PLAYING;
+  config.setSmartStart(1);
+  netserver.requestOnChange(MODE, 0);
+  setOutputPins(true);
+/*
+  config.setStation(const_BTSink);
+  config.station.bitrate=441;
+  config.setBitrateFormat(BF_SBC);
+  display.putRequest(DBITRATE);
+  display.putRequest(NEWSTATION);
+*/
+  display.putRequest(NEWMODE, PLAYER);
+  display.putRequest(PSTART);  
+}
+
+void Player::set_status(uint8_t stat){
+  if(stat == PLAYING) _status = PLAYING;
+  else                _status = STOPPED;
+  netserver.requestOnChange(MODE, 0);
 }
 
 #ifdef MQTT_ROOT_TOPIC
@@ -265,29 +343,40 @@ void Player::browseUrl(){
 #endif
 
 void Player::prev() {
-  
-  uint16_t lastStation = config.lastStation();
-  if(config.getMode()==PM_WEB || !config.store.sdsnuffle){
-    if (lastStation == 1) config.lastStation(config.store.countStation); else config.lastStation(lastStation-1);
+  if(config.getMode()!=PM_BTSINK){
+    uint16_t lastStation = config.lastStation();
+    if(config.getMode()==PM_WEB || !config.store.sdsnuffle){
+      if (lastStation == 1) config.lastStation(config.store.countStation); else config.lastStation(lastStation-1);
+    }
+    sendCommand({PR_PLAY, config.lastStation()});
+  } else{
+    uart_send_param(APP_UART_SEND_PT_CMD,ESP_AVRC_PT_CMD_BACKWARD);
   }
-  sendCommand({PR_PLAY, config.lastStation()});
 }
 
 void Player::next() {
-  uint16_t lastStation = config.lastStation();
-  if(config.getMode()==PM_WEB || !config.store.sdsnuffle){
-    if (lastStation == config.store.countStation) config.lastStation(1); else config.lastStation(lastStation+1);
+  if(config.getMode()!=PM_BTSINK){
+    uint16_t lastStation = config.lastStation();
+    if(config.getMode()==PM_WEB || !config.store.sdsnuffle){
+      if (lastStation == config.store.countStation) config.lastStation(1); 
+      else config.lastStation(lastStation+1);
+    }else if(config.getMode()==PM_SDCARD) {
+      config.lastStation(random(1, config.store.countStation));
+    }
+    sendCommand({PR_PLAY, config.lastStation()});
   }else{
-    config.lastStation(random(1, config.store.countStation));
+    uart_send_param(APP_UART_SEND_PT_CMD,ESP_AVRC_PT_CMD_FORWARD);
   }
-  sendCommand({PR_PLAY, config.lastStation()});
 }
 
 void Player::toggle() {
-  if (_status == PLAYING) {
-    sendCommand({PR_STOP, 0});
+  if(config.getMode()!=PM_BTSINK){
+    if (_status == PLAYING) sendCommand({PR_STOP, 0});
+    else sendCommand({PR_PLAY, config.lastStation()});
   } else {
-    sendCommand({PR_PLAY, config.lastStation()});
+    if (_status == PLAYING) uart_send_param(APP_UART_SEND_PT_CMD,ESP_AVRC_PT_CMD_PAUSE);
+    else                    uart_send_param(APP_UART_SEND_PT_CMD,ESP_AVRC_PT_CMD_PLAY);
+//    netserver.requestOnChange(MODE, 0);
   }
 }
 
@@ -321,5 +410,11 @@ void Player::_loadVol(uint8_t volume) {
 void Player::setVol(uint8_t volume) {
   _volTicks = millis();
   _volTimer = true;
+  _volTimerSend = true;
   player.sendCommand({PR_VOL, volume});
+}
+
+void Player::setVolremote(uint8_t volume){
+  player.setVol(volume);
+  _volTimerSend = false;
 }

@@ -16,6 +16,7 @@
 #include "flac_decoder/flac_decoder.h"
 #include "../core/config.h"
 #include "../core/uart_app.h"
+#include "config.h"
 #ifdef SDFATFS_USED
 fs::SDFATFS SD_SDFAT;
 #endif
@@ -161,7 +162,9 @@ uint32_t AudioBuffer::getReadPos() {
 }
 //---------------------------------------------------------------------------------------------------------------------
 Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC_CHANNEL_BOTH_EN */, uint8_t i2sPort) {
-
+    Audio::init_i2s(internalDAC,channelEnabled,i2sPort);
+}
+void Audio::init_i2s(bool internalDAC, uint8_t channelEnabled, uint8_t i2sPort) {
     //    build-in-DAC works only with ESP32 (ESP32-S3 has no build-in-DAC)
     //    build-in-DAC last working Arduino Version: 2.0.0-RC2
     //    possible values for channelEnabled are:
@@ -178,7 +181,7 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
     m_f_internalDAC = internalDAC;
     //i2s configuration
     m_i2s_num = i2sPort; // i2s port number
-    m_i2s_config.sample_rate          = 16000;
+    m_i2s_config.sample_rate          = 44100;//16000;
     m_i2s_config.bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT;
     m_i2s_config.channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT;
     m_i2s_config.intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1; // interrupt priority
@@ -216,15 +219,16 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
 
     }
     else {
-        m_i2s_config.mode             = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
-
+        if(config.getMode()==PM_BTSINK) m_i2s_config.mode = (i2s_mode_t)(I2S_MODE_SLAVE  | I2S_MODE_RX);
+        else                     m_i2s_config.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
         #if ESP_ARDUINO_VERSION_MAJOR >= 2
             m_i2s_config.communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_I2S); // Arduino vers. > 2.0.0
         #else
             m_i2s_config.communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB);
         #endif
 
-        i2s_driver_install((i2s_port_t)m_i2s_num, &m_i2s_config, 0, NULL);
+        esp_err_t ret = i2s_driver_install((i2s_port_t)m_i2s_num, &m_i2s_config, 0, NULL);
+//        Serial.printf("i2s_driver_install ret %d\n", ret);
         m_f_forceMono = false;
     }
 
@@ -267,6 +271,10 @@ esp_err_t Audio::I2Sstart(uint8_t i2s_num) {
 esp_err_t Audio::I2Sstop(uint8_t i2s_num) {
     return i2s_stop((i2s_port_t) i2s_num);
 }
+void Audio::setVU_Only(){
+    setDatamode(VU_ONLY);
+}
+
 //---------------------------------------------------------------------------------------------------------------------
 esp_err_t Audio::i2s_mclk_pin_select(const uint8_t pin) {
     // IDF >= 4.4 use setPinout(BCLK, LRC, DOUT, DIN, MCK) only, i2s_mclk_pin_select() is no longer needed
@@ -317,11 +325,13 @@ void Audio::setDefaults() {
     vector_clear_and_shrink(m_playlistURL);
     vector_clear_and_shrink(m_playlistContent);
     m_hashQueue.clear(); m_hashQueue.shrink_to_fit(); // uint32_t vector
-    if(config.getMode()!=PM_SDCARD){
+    if(config.getMode()==PM_WEB){
       if(_client) _client->stop();
       _client = static_cast<WiFiClient*>(&client); /* default to *something* so that no NULL deref can happen */
     }
-    playI2Sremains();
+//    Serial.printf("~~~~~>>~~~~~~>>>>>>>> config.i2s_reinit %d mode %d\n" ,config.i2s_reinit,config.getMode());
+//    if(!config.i2s_reinit) playI2Sremains();
+    if(config.getMode()!=PM_BTSINK) playI2Sremains();
 
     AUDIO_INFO("buffers freed, free Heap: %u bytes", ESP.getFreeHeap());
 
@@ -2307,12 +2317,14 @@ uint32_t Audio::stopSong() {
 }
 //---------------------------------------------------------------------------------------------------------------------
 void Audio::playI2Sremains() { // returns true if all dma_buffs flushed
+//    Serial.printf("----------%s  bitpersample %d channels %d \n",__func__,getBitsPerSample(),getChannels());
     if(!getSampleRate()) setSampleRate(96000);
     if(!getChannels()) setChannels(2);
     if(getBitsPerSample() > 8) memset(m_outBuff,   0, sizeof(m_outBuff));     //Clear OutputBuffer (signed)
     else                       memset(m_outBuff, 128, sizeof(m_outBuff));     //Clear OutputBuffer (unsigned, PCM 8u)
 
     m_validSamples = m_i2s_config.dma_buf_len;
+    if(m_i2s_config.mode == (I2S_MODE_SLAVE | I2S_MODE_RX)) return;
     while(m_validSamples) {
         playChunk();
     }
@@ -2333,6 +2345,7 @@ bool Audio::pauseResume() {
 }
 //---------------------------------------------------------------------------------------------------------------------
 bool Audio::playChunk() {
+//    Serial.printf("----------%s  bitpersample %d channels %d \n",__func__,getBitsPerSample(),getChannels());
     // If we've got data, try and pump it out..
     int16_t sample[2];
     if(getBitsPerSample() == 8) {
@@ -2490,14 +2503,16 @@ uint16_t Audio::get_VUlevel(uint16_t dimension){
   uint8_t R = map(vuRight, config.vuThreshold, 0, 0, dimension);
   return (L << 8) | R;
 }
-//---------------------------------------------------------------------------------------------------------------------
 
+//---------------------------------------------------------------------------------------------------------------------
+//static uint32_t s_pkt_cnt = 0;
 void Audio::loop() {
     if(!m_f_running) {
       vuLeft=0; vuRight=0;
       vTaskDelay(2);
       return;
     }
+
     if(m_playlistFormat != FORMAT_M3U8){ // normal process
         switch(getDatamode()){
             case AUDIO_LOCALFILE:
@@ -2516,6 +2531,10 @@ void Audio::loop() {
                 break;
             case AUDIO_DATA:
                 processWebStream();
+                break;
+            case VU_ONLY:
+//                if (++s_pkt_cnt % 10000 == 0) Serial.printf("\tLOOP for VU metter. cnt %d vuLeft %d vuRight %d\n",s_pkt_cnt,vuLeft,vuRight);
+                processVUOnly();
                 break;
         }
     }
@@ -2973,7 +2992,6 @@ bool Audio::STfromEXTINF(char* str){
 }
 //---------------------------------------------------------------------------------------------------------------------
 void Audio::processLocalFile() {
-
     if(!(audiofile && m_f_running && getDatamode() == AUDIO_LOCALFILE)) return;
     int bytesDecoded = 0;
     uint32_t bytesCanBeWritten = 0;
@@ -3082,7 +3100,6 @@ void Audio::processLocalFile() {
 }
 //---------------------------------------------------------------------------------------------------------------------
 void Audio::processWebStream() {
-
     const uint16_t  maxFrameSize = InBuff.getMaxBlockSize();    // every mp3/aac frame is not bigger
     uint32_t        availableBytes;                             // available bytes in stream
     static bool     f_tmr_1s;
@@ -4109,10 +4126,10 @@ void Audio::showCodecParams(){
     AUDIO_INFO("SampleRate: %i", getSampleRate());
     AUDIO_INFO("BitsPerSample: %i", getBitsPerSample());
 
-    char uart_buf[8];
-    sprintf(uart_buf,"8:%d",getSampleRate());
-    uart_send_data(uart_buf);
-
+//    char uart_buf[8];
+//    sprintf(uart_buf,"8:%d",getSampleRate());
+//    uart_send_data(uart_buf);
+    uart_send_param(APP_UART_SEND_I2S_SAMPLE_RATE,getSampleRate());
     if(getBitRate()) {AUDIO_INFO("BitRate: %i", getBitRate());}
     else             {AUDIO_INFO("BitRate: N/A");}
 
@@ -4194,6 +4211,7 @@ int Audio::findNextSync(uint8_t* data, size_t len){
 }
 //---------------------------------------------------------------------------------------------------------------------
 int Audio::sendBytes(uint8_t* data, size_t len) {
+//    Serial.printf("----------%s  len %d\n",__func__,len);
     int bytesLeft;
     static bool f_setDecodeParamsOnce = true;
     int nextSync = 0;
@@ -4416,7 +4434,7 @@ void Audio::printDecodeError(int r) {
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t DIN, int8_t MCK) {
+bool Audio::setPinout(uint8_t BCLK, uint8_t LRC, int8_t DOUT, int8_t DIN, int8_t MCK) {
     m_pin_config.bck_io_num   = BCLK;
     m_pin_config.ws_io_num    = LRC; //  wclk
     m_pin_config.data_out_num = DOUT;
@@ -4601,7 +4619,6 @@ void Audio::setI2SCommFMT_LSB(bool commFMT) {
 }
 //---------------------------------------------------------------------------------------------------------------------
 bool Audio::playSample(int16_t sample[2]) {
-
     if (getBitsPerSample() == 8) { // Upsample from unsigned 8 bits to signed 16 bits
         sample[LEFTCHANNEL]  = ((sample[LEFTCHANNEL]  & 0xff) -128) << 8;
         sample[RIGHTCHANNEL] = ((sample[RIGHTCHANNEL] & 0xff) -128) << 8;
@@ -4633,6 +4650,22 @@ bool Audio::playSample(int16_t sample[2]) {
     }
     return true;
 }
+
+void  Audio::processVUOnly(){
+    uint32_t    s32 = 0;
+    int16_t     sample[2] = {0,0};
+    size_t      bytes_read;
+    static uint8_t t_cnt = 0;
+    esp_err_t err = i2s_read((i2s_port_t) m_i2s_num, &s32, sizeof(uint32_t), &bytes_read, 100);
+    if(bytes_read){
+        sample[LEFTCHANNEL] = s32 & 0xFFFF;
+        sample[RIGHTCHANNEL] = s32 >> 16;
+        _computeVUlevel(sample);
+    }
+    if(vuLeft || vuRight){ t_cnt = 0; }
+    else if(++t_cnt > 31){ config.vuThreshold = 4; }
+}
+
 //---------------------------------------------------------------------------------------------------------------------
 void Audio::setTone(int8_t gainLowPass, int8_t gainBandPass, int8_t gainHighPass){
     // see https://www.earlevel.com/main/2013/10/13/biquad-calculator-v2/
@@ -4702,9 +4735,13 @@ int32_t Audio::Gain(int16_t s[2]) {
         r = (uint8_t)(step);
     }
 
-    v[LEFTCHANNEL] = (s[LEFTCHANNEL]  * (m_vol - l)) >> 8;
-    v[RIGHTCHANNEL]= (s[RIGHTCHANNEL] * (m_vol - r)) >> 8;
-
+    if(config.bt_spkr_connected && config.bt_volume_control){
+        v[LEFTCHANNEL] = s[LEFTCHANNEL];
+        v[RIGHTCHANNEL]= s[RIGHTCHANNEL];        
+    } else {
+        v[LEFTCHANNEL] = (s[LEFTCHANNEL]  * (m_vol - l)) >> 8;
+        v[RIGHTCHANNEL]= (s[RIGHTCHANNEL] * (m_vol - r)) >> 8;
+    }
     return (v[LEFTCHANNEL] << 16) | (v[RIGHTCHANNEL] & 0xffff);
 }
 //---------------------------------------------------------------------------------------------------------------------

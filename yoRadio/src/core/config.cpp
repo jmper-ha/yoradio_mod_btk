@@ -9,8 +9,10 @@
 #include "sdmanager.h"
 #endif
 #include <cstddef>
-
+#include "uart_app.h"
 Config config;
+
+//bool i2s_reinit = false;
 
 void u8fix(char *src){
   char last = src[strlen(src)-1]; 
@@ -67,8 +69,12 @@ void Config::init() {
   while(store.version!=CONFIG_VERSION) _setupVersion();
   BOOTLOG("CONFIG_VERSION\t%d", store.version);
   store.play_mode = store.play_mode & 0b11;
-  if(store.play_mode>1) store.play_mode=PM_WEB;
+  if(store.play_mode>MAX_PLAY_MODE) store.play_mode=PM_WEB;
+////////////////////
+//  store.play_mode = 0;
+  config.hw_mode = (char*)malloc(sizeof(web_mode)/sizeof(web_mode[0]));
   _initHW();
+  changeMode(store.play_mode);
   if (!SPIFFS.begin(true)) {
     Serial.println("##[ERROR]#\tSPIFFS Mount Failed");
     return;
@@ -78,7 +84,9 @@ void Config::init() {
   if(emptyFS) BOOTLOG("SPIFFS is empty!");
   ssidsCount = 0;
   #ifdef USE_SD
-  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+// _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+  if(getMode()==PM_SDCARD) _SDplaylistFS = &sdman;
+  if(getMode()==PM_WEB) _SDplaylistFS = &SPIFFS;
   #else
   _SDplaylistFS = &SPIFFS;
   #endif
@@ -111,8 +119,9 @@ void Config::_setupVersion(){
   saveValue(&store.version, currentVersion);
 }
 
-#ifdef USE_SD
+#if defined USE_SD || defined ISUART
 
+#if 0
 void Config::changeMode(int newmode){
   bool pir = player.isRunning();
   if(SDC_CS==255) return;
@@ -177,6 +186,116 @@ void Config::initSDPlaylist() {
     saveValue(&store.countStation, store.countStation, true, true);
   }
 }
+#else
+
+void Config::get_init(){
+  uart_send_param_init(getMode()==PM_BTSINK?APP_MODE_SINK:APP_MODE_SOURCE,store.bt_sinkname);
+}
+
+void Config::reinit(){
+  if(i2s_reinit){
+    esp_err_t ret = i2s_driver_uninstall((i2s_port_t)player.getI2sPort());
+    player.init_i2s();
+    player.changePinout();
+    i2s_reinit = false;
+    change_past();
+  }
+}
+
+void Config::changeMode(int newmode){
+  int oldmode;
+  if(newmode<0){
+    newmode = store.play_mode;
+    if(++newmode > MAX_PLAY_MODE) newmode=0;
+  }
+  _check_hw_mode();
+  while(!config.hw_mode[newmode]){
+      if(++newmode > MAX_PLAY_MODE) newmode = 0;
+  }  
+  if(!_bootDone) return;
+  if(getMode()==newmode) return;
+
+  if(getMode()==PM_SDCARD) sdResumePos = player.getFilePos();
+  if(player.isRunning()) player.sendCommand({PR_STOP, 0});
+  oldmode = getMode();
+  store.play_mode=(playMode_e)newmode;
+  saveValue(&store.play_mode, store.play_mode, true, true);
+
+  if((oldmode==PM_BTSINK)||(newmode==PM_BTSINK)){
+    player.set_run(false);
+    esp_err_t ret = i2s_stop((i2s_port_t)player.getI2sPort());
+    uart_send_param(APP_UART_SEND_REINIT_CMD, newmode==PM_BTSINK?APP_MODE_SINK:APP_MODE_SOURCE);
+    i2s_reinit = true;
+    if(oldmode==PM_BTSINK) netserver.free_art_image();
+  } else {
+    change_past();
+  }
+}
+
+void Config::change_past(){
+  uint16_t _lastStation = 0;
+  switch (getMode()){
+    case PM_WEB:
+      _SDplaylistFS = &SPIFFS;
+      _lastStation = store.lastStation;
+      if (_lastStation == 0 && store.countStation > 0) _lastStation = 1;
+      lastStation(_lastStation);
+      loadStation(_lastStation);
+      player.sendCommand({PR_PLAY, store.lastStation});
+      break;
+#ifdef USE_SD
+    case PM_SDCARD:
+      _SDplaylistFS = &sdman;
+      display.putRequest(NEWMODE, SDCHANGE);
+      while(display.mode()!=SDCHANGE)
+        delay(10);
+      delay(50);
+      initSDPlaylist();
+      _lastStation = store.lastSdStation;
+      if(_lastStation>store.countStation && store.countStation>0) _lastStation=1;
+      if(_lastStation==0) _lastStation = _randomStation();
+      lastStation(_lastStation);
+      loadStation(_lastStation);
+      player.sendCommand({PR_PLAY, store.lastSdStation});
+      break;
+#endif
+    case PM_BTSINK:
+      uart_send_param(APP_UART_SEND_VOLUME,player.getVolume());
+      player.sendCommand({PR_VUONLY,0});
+      break;
+    default: break;
+  }
+  netserver.resetQueue();
+  //netserver.requestOnChange(GETPLAYERMODE, 0);
+  //netserver.requestOnChange(GETINDEX, 0);
+  netserver.requestOnChange(GETMODE, 0);
+  if(getMode()!=PM_BTSINK)  display.resetQueue();
+  display.putRequest(NEWMODE, PLAYER);
+  display.putRequest(NEWSTATION);
+}
+
+void Config::_check_hw_mode(){
+  if(network.status != CONNECTED || emptyFS){
+    Serial.println("##[ERROR]#\tNo connection");
+    config.hw_mode[PM_WEB]=0;
+  } else config.hw_mode[PM_WEB]=1;
+#ifndef USE_SD
+  config.hw_mode[PM_SDCARD]=0; 
+#else
+    if(!sdman.start()){
+      Serial.println("##[ERROR]#\tSD Not Found");
+      sdman.stop();
+      config.hw_mode[PM_SDCARD]=0;  
+    }else config.hw_mode[PM_SDCARD]=1; 
+#endif
+#ifndef ISUART
+  config.hw_mode[PM_BTSINK]=0;
+#else
+  if(config.store.bt_sink_mode) config.hw_mode[PM_BTSINK]=1;
+  else  config.hw_mode[PM_BTSINK]=0;
+#endif
+}
+#endif
 
 #endif //#ifdef USE_SD
 
@@ -215,18 +334,25 @@ void Config::initPlaylistMode(){
       _lastStation = store.lastStation;
     }
   #else //ifdef USE_SD
-    store.play_mode=PM_WEB;
+//    store.play_mode=PM_WEB;
     _lastStation = store.lastStation;
   #endif
   if(getMode()==PM_WEB && !emptyFS) initPlaylist();
   log_i("%d" ,_lastStation);
   if (_lastStation == 0 && store.countStation > 0) {
-    _lastStation = getMode()==PM_WEB?1:_randomStation();
+//    _lastStation = getMode()==PM_WEB?1:_randomStation();
+    if(getMode()==PM_WEB) _lastStation = 1;
+    if(getMode()==PM_SDCARD) _lastStation = _randomStation();
   }
   lastStation(_lastStation);
   saveValue(&store.play_mode, store.play_mode, true, true);
   _bootDone = true;
-  loadStation(_lastStation);
+  if(getMode()==PM_BTSINK){
+    memset(station.url, 0, BUFLEN);
+    memset(station.name, 0, BUFLEN);
+    strncpy(station.name, const_BTSink, BUFLEN);
+    station.ovol = 0;
+  } else loadStation(_lastStation);
 }
 
 void Config::_initHW(){
@@ -368,6 +494,8 @@ void Config::setDefaults() {
   store.skipPlaylistUpDown = false;
   store.screensaverPlayingEnabled = false;
   store.screensaverPlayingTimeout = 5;
+  store.bt_sink_mode = false;
+  snprintf(store.bt_sinkname, MDNS_LENGTH, "yoradio-%x", getChipId());
   eepromWrite(EEPROM_START, store);
 }
 
@@ -449,6 +577,8 @@ void Config::setStation(const char* station) {
   memset(config.station.name, 0, BUFLEN);
   strlcpy(config.station.name, station, BUFLEN);
   u8fix(config.station.title);
+  display.putRequest(NEWSTATION);
+  netserver.requestOnChange(STATION, 0);
 }
 
 void Config::indexPlaylist() {
@@ -890,11 +1020,10 @@ void Config::bootInfo() {
   BOOTLOG("showweather:\t%s", store.showweather?"true":"false");
   BOOTLOG("buttons:\tleft=%d, center=%d, right=%d, up=%d, down=%d, mode=%d, pullup=%s", 
           BTN_LEFT, BTN_CENTER, BTN_RIGHT, BTN_UP, BTN_DOWN, BTN_MODE, BTN_INTERNALPULLUP?"true":"false");
-  BOOTLOG("favorite:\tF1=%d, F2=%d, F3=%d, F4=%d, F5=%d",BTN_F1,BTN_F2,BTN_F3,BTN_F4,BTN_F5);
+  BOOTLOG("favorite:\tF1=%d, F2=%d, F3=%d, F4=%d, F5=%d,F6=%d,QR=%d",BTN_F1,BTN_F2,BTN_F3,BTN_F4,BTN_F5,BTN_F6,BTN_QR);
   BOOTLOG("encoders:\tl1=%d, b1=%d, r1=%d, pullup=%s, l2=%d, b2=%d, r2=%d, pullup=%s", 
           ENC_BTNL, ENC_BTNB, ENC_BTNR, ENC_INTERNALPULLUP?"true":"false", ENC2_BTNL, ENC2_BTNB, ENC2_BTNR, ENC2_INTERNALPULLUP?"true":"false");
   BOOTLOG("ir:\t\t%d", IR_PIN);
   if(SDC_CS!=255) BOOTLOG("SD:\t\t%d", SDC_CS);
   BOOTLOG("------------------------------------------------");
 }
-

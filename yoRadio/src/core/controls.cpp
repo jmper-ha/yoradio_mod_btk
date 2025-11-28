@@ -87,9 +87,6 @@ void IRAM_ATTR readEncoder2ISR()
   encoder2.readEncoder_ISR();
 }
 #endif
-uint8_t get_fav_count(){
-
-}
 
 void initControls() {
 #if ENC_BTNL!=255
@@ -382,7 +379,7 @@ void onBtnLongPressStart(int id) {
 #       if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
         break;
 #       endif
-        display.putRequest(NEWMODE, display.mode() == PLAYER ? STATIONS : PLAYER);
+        if(config.getMode()!=PM_BTSINK) display.putRequest(NEWMODE, display.mode() == PLAYER ? STATIONS : PLAYER);
         break;
       }
     case EVT_ENC2BTNB: {
@@ -597,12 +594,12 @@ void onBtnClick(int id) {
         }
         break;
       }
-    #ifdef USE_SD
+#if defined USE_SD || defined ISUART
     case EVT_BTNMODE: {
       config.changeMode();
       break;
     }
-    #endif
+#endif
     case EVT_F1:
     case EVT_F2:
     case EVT_F3:

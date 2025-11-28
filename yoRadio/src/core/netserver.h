@@ -33,8 +33,11 @@ enum requestType_e : uint8_t  {
   SDINIT=25, 
   GETPLAYERMODE=26, 
   CHANGEMODE=27,
-  GETEIRS=28,
-  GETFAVUPD=29
+  GETEIRS,
+  GETFAVUPD,
+  BTINIT,
+  HWINIT,
+  GETBTSINKMODE,
   };
 enum import_e      : uint8_t  { IMDONE=0, IMPL=1, IMWIFI=2 };
 const char emptyfs_html[] PROGMEM = R"(
@@ -93,6 +96,10 @@ class NetServer {
     void chunkedHtmlPage(const String& contentType, AsyncWebServerRequest *request, const char * path, bool doproc = true);
     void onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t clientId);
     bool irRecordEnable;
+    void uart_sent_net(char* d);
+    void set_art_image(size_t size);
+    void free_art_image();
+
 #if IR_PIN!=255
     void irToWs(const char* protocol, uint64_t irvalue);
     void irValsToWs(); 
@@ -112,6 +119,6 @@ class NetServer {
 };
 
 extern NetServer netserver;
-void uart_sent_net();
+//void uart_sent_net(char* d);
 
 #endif

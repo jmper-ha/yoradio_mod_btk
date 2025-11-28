@@ -38,7 +38,7 @@ void setup() {
   }
   config.initPlaylistMode();
   netserver.begin();
-//  telnet.begin();
+  telnet.begin();
   initControls();
   display.putRequest(DSP_START);
   while(!display.ready()) delay(10);

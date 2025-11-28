@@ -38,20 +38,23 @@
 #define REAL_PLAYL   getMode()==PM_WEB?PLAYLIST_PATH:PLAYLIST_SD_PATH
 #define REAL_INDEX   getMode()==PM_WEB?INDEX_PATH:INDEX_SD_PATH
 
-#define MAX_PLAY_MODE   1
+#define MAX_PLAY_MODE   2
 #define WEATHERKEY_LENGTH 58
 #define MDNS_LENGTH 24
 #if SDC_CS!=255
   #define USE_SD
+#endif
+#if (UART_TX!=255 && UART_RX!=255)
+  #define ISUART
 #endif
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
   #define ESP_ARDUINO_3 1
 #endif
 #define CONFIG_VERSION  4
 
-enum playMode_e      : uint8_t  { PM_WEB=0, PM_SDCARD=1 };
-enum BitrateFormat { BF_UNCNOWN, BF_MP3, BF_AAC, BF_FLAC, BF_OGG, BF_WAV };
-
+enum playMode_e      : uint8_t  { PM_WEB=0, PM_SDCARD=1, PM_BTSINK=2  };
+enum BitrateFormat { BF_UNCNOWN, BF_MP3, BF_AAC, BF_FLAC, BF_OGG, BF_WAV, BF_SBC };
+//enum {DISABLED,ENABLED};
 void u8fix(char *src);
 
 struct theme_t {
@@ -146,6 +149,8 @@ struct config_t
   bool      screensaverPlayingBlank;
   char      mdnsname[24];
   bool      skipPlaylistUpDown;
+  bool      bt_sink_mode;
+  char      bt_sinkname[24];
 };
 
 #if IR_PIN!=255
@@ -187,12 +192,17 @@ class Config {
     uint16_t sleepfor;
     uint32_t sdResumePos;
     bool     emptyFS;
+    bool     i2s_reinit;
     uint16_t vuThreshold;
     uint16_t screensaverTicks;
     uint16_t screensaverPlayingTicks;
     bool     isScreensaver;
     uint8_t favorite[FAVBTNCNT];
     char  upd_fav[40];
+    char*  web_mode[3] = {"modeweb","modesd","modebt"};
+    char*  hw_mode;
+    bool  bt_spkr_connected = false;
+    bool  bt_volume_control = false;
   public:
     Config() {};
     //void save();
@@ -200,6 +210,7 @@ class Config {
     void saveIR();
 #endif
     void init();
+    void reinit();
     void loadTheme();
     uint8_t setVolume(uint8_t val);
     void saveVolume();
@@ -227,16 +238,21 @@ class Config {
     int8_t addFavorite(uint16_t fav_id);
     char* updFavLine();
     uint8_t get_fav_cnt();
+    void get_init();
     #ifdef USE_SD
       void initSDPlaylist();
-      void changeMode(int newmode=-1);
     #endif
+    void changeMode(int newmode=-1);
+    void change_past();
     uint16_t lastStation(){
-      return getMode()==PM_WEB?store.lastStation:store.lastSdStation;
+      if(getMode()==PM_WEB) return store.lastStation;
+      else if(getMode()==PM_SDCARD) return store.lastSdStation;
+      else return 0;
+//      return getMode()==PM_WEB?store.lastStation:store.lastSdStation;
     }
     void lastStation(uint16_t newstation){
       if(getMode()==PM_WEB) saveValue(&store.lastStation, newstation);
-      else saveValue(&store.lastSdStation, newstation);
+      else if(getMode()==PM_SDCARD) saveValue(&store.lastSdStation, newstation);
     }
     uint8_t fillPlMenu(int from, uint8_t count, bool fromNextion=false);
     char * stationByNum(uint16_t num);
@@ -307,6 +323,7 @@ class Config {
       return station;
     }
     char _stationBuf[BUFLEN/2];
+    void _check_hw_mode();
 };
 
 extern Config config;

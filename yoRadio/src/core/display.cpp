@@ -137,7 +137,9 @@ void Display::_buildPager(){
   #endif
   #ifndef HIDE_RSSI
     _rssi = new TextWidget(rssiConf, 10, false, config.theme.rssi, config.theme.background);
+    #ifdef RSSI_TXT_MOD
     _rssitxt = new TextWidget(rssitxtConf, 10, false, config.theme.rssi, config.theme.background);
+    #endif
   #endif
   _nums.init(numConf, 10, false, config.theme.digit, config.theme.background);
   #ifndef HIDE_WEATHER
@@ -148,9 +150,11 @@ void Display::_buildPager(){
   if(_voltxt)   _footer.addWidget( _voltxt);
   if(_volip)    _footer.addWidget( _volip);
   if(_rssi)     _footer.addWidget( _rssi);
-  if(_rssitxt)  _footer.addWidget( _rssitxt);
   if(_heapbar)  _footer.addWidget( _heapbar);
-  
+#ifdef RSSI_TXT_MOD
+  if(_rssitxt)  _footer.addWidget( _rssitxt);
+#endif
+
   if(_metabackground) pages[PG_PLAYER]->addWidget( _metabackground);
   pages[PG_PLAYER]->addWidget(&_meta);
   pages[PG_PLAYER]->addWidget(&_title1);
@@ -164,13 +168,16 @@ void Display::_buildPager(){
     pages[PG_PLAYER]->addWidget( _bitrate);
   #endif
 /* ===================== add new =============================== */
+#ifdef BT_DISP_MOD
   _bt = new TextWidget(btConf, 5, false, config.theme.bt, config.theme.background);
   pages[PG_PLAYER]->addWidget(_bt);
+#endif
+#ifdef BT_BAT_MOD
   _bat = new TextWidget(batConf, 4, false, config.theme.batt, config.theme.background);
   pages[PG_PLAYER]->addWidget(_bat);
   _battxt = new TextWidget(battxtConf, 5, false, config.theme.batt, config.theme.background);
   pages[PG_PLAYER]->addWidget(_battxt);
-
+#endif
 
   if(_vuwidget) pages[PG_PLAYER]->addWidget( _vuwidget);
   pages[PG_PLAYER]->addWidget(&_clock);
@@ -353,7 +360,9 @@ void Display::_swichMode(displayMode_e newmode) {
     currentPlItem = config.lastStation();
     _drawPlaylist();
   }
+#ifdef QR_DISP_MOD  
   if (newmode == QR) drawQRcode();
+#endif
 }
 
 void Display::drawQRcode() {
@@ -379,8 +388,15 @@ void Display::drawQRcode() {
 void Display::_showFavWarn(uint8_t id){
   _mode=NUMBERS;
   _showDialog(const_FavAlready);
-  _nums.setText(id, numFavFmt);
+  _nums.setText(id, "#%d");
   _setReturnTicker(1);
+}
+
+void Display::_showCfmNum(uint32_t id){
+  _mode=NUMBERS;
+  _showDialog("confirm");
+  _nums.setText(id, "%06ld");
+  _setReturnTicker(10);
 }
 
 void Display::resetQueue(){
@@ -414,6 +430,7 @@ void Display::putRequest(displayRequestType_e type, int payload){
 }
 
 void Display::_layoutChange(bool played){
+//  Serial.printf("Display::_layoutChange: played %d config.store.vumeter %d\n",played,config.store.vumeter);
   if(config.store.vumeter){
     if(played){
       if(_vuwidget) _vuwidget->unlock();
@@ -528,9 +545,20 @@ void Display::loop() {
           break;
         }
         case SHOWFAVWARN:{ _showFavWarn(request.payload);break;}
+        case SHOWFCFMNUM:{ 
+          if(request.payload) _showCfmNum(request.payload);
+          else {
+            _returnTicker.detach();
+            returnPlayer();
+            }
+          break;}
+#ifdef BT_DISP_MOD
         case SHOWBT:{_set_bt(request.payload);break;}
+#endif
+#ifdef BT_BAT_MOD
         case BATTERY:{_updBatt(request.payload);break;}
         case CHARGE:{_upd_charge(); break;}
+#endif
         default: break;
       }
   }
@@ -603,7 +631,7 @@ void Display::_updBatt(uint16_t data){
 
 void Display::_set_bt(bool s) {
   if(!_bt) return;
-  _bt->setText(s?"\040":"\014");
+  _bt->setText(s?"\014":"\040");
 }
 
 void Display::_setRSSI(int rssi) {
@@ -619,7 +647,9 @@ void Display::_setRSSI(int rssi) {
   if(rssi >= rssi_steps[2] && rssi < rssi_steps[1]) strlcpy(rssiG, "\004\002", 3);
   if(rssi >= rssi_steps[3] && rssi < rssi_steps[2]) strlcpy(rssiG, "\003\002", 3);
   if(rssi <  rssi_steps[3] || rssi >=  0) strlcpy(rssiG, "\001\002", 3);
+#ifdef RSSI_TXT_MOD
   _rssitxt->setText(rssi,rssitxtFmt);
+#endif
   _rssi->setText(rssiG);
 }
 

@@ -44,7 +44,8 @@ enum displayRequestType_e { BOOTSTRING,
                             SHOWFAVWARN,
                             SHOWBT,
                             BATTERY,
-                            CHARGE };
+                            CHARGE,
+                            SHOWFCFMNUM };
 struct requestParams_t
 {
   displayRequestType_e type;

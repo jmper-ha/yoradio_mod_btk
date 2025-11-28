@@ -106,7 +106,7 @@ void MyNetwork::WiFiReconnected(WiFiEvent_t event, WiFiEventInfo_t info){
   if(config.getMode()==PM_SDCARD) {
     network.status=CONNECTED;
     display.putRequest(NEWIP, 0);
-  }else{
+  }else if(config.getMode()==PM_WEB){
     display.putRequest(NEWMODE, PLAYER);
     if (network.lostPlaying) player.sendCommand({PR_PLAY, config.lastStation()});
   }
@@ -121,7 +121,7 @@ void MyNetwork::WiFiLostConnection(WiFiEvent_t event, WiFiEventInfo_t info){
     if(config.getMode()==PM_SDCARD) {
       network.status=SDREADY;
       display.putRequest(NEWIP, 0);
-    }else{
+    }else if(config.getMode()==PM_WEB){
       network.lostPlaying = player.isRunning();
       if (network.lostPlaying) { player.lockOutput = true; player.sendCommand({PR_STOP, 0}); }
       display.putRequest(NEWMODE, LOST);
@@ -211,7 +211,8 @@ void MyNetwork::begin() {
     Serial.println(".");
     status = CONNECTED;
     setWifiParams();
-  }else{
+//  }else if(config.getMode()==PM_SDCARD){
+  } else {
     status = SDREADY;
     xTaskCreatePinnedToCore(searchWiFi, "searchWiFi", 1024 * 4, NULL, 0, NULL, 0);
   }
@@ -281,7 +282,9 @@ void MyNetwork::raiseSoftAP() {
 }
 
 void MyNetwork::WiFiconn(WiFiEvent_t event, WiFiEventInfo_t info){
+#ifdef QR_DISP_MOD
   if(display.mode() == QR) display.drawQRcode();
+#endif
 }
 
 void MyNetwork::requestWeatherSync(){

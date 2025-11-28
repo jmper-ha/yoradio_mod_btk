@@ -6,11 +6,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 
-#ifdef BTN_QR
-#include "../core/qrcode.h"
-#define ECC ECC_QUARTILE
-#define VER 4
-#endif
 #if CLOCKFONT_MONO
   #include "fonts/DS_DIGI28pt7b_mono.h"                          // https://tchapi.github.io/Adafruit-GFX-Font-Customiser/
 #else
@@ -26,17 +21,26 @@ typedef GFXcanvas16 Canvas;
 #include "widgets/pages.h"
 
 
-#if __has_include("conf/displayST7735conf_custom.h")
-  #include "conf/displayST7735conf_custom.h"
-#else
-  #if DTYPE==INITR_MINI160x80
+#if DTYPE==INITR_MINI160x80
+  #if __has_include("conf/displayST7735_miniconf_custom.h")
+    #include "conf/displayST7735_miniconf_custom.h"
+  #else
     #include "conf/displayST7735_miniconf.h"
-  #elif DTYPE==INITR_144GREENTAB
+  #endif
+#elif DTYPE==INITR_144GREENTAB
+  #if __has_include("conf/displayST7735_144conf_custom.h")
+    #include "conf/displayST7735_144conf_custom.h"
+  #else
     #include "conf/displayST7735_144conf.h"
+  #endif
+#else
+  #if __has_include("conf/displayST7735_blackconf_custom.h")
+    #include "conf/displayST7735_blackconf_custom.h"
   #else
     #include "conf/displayST7735_blackconf.h"
   #endif
 #endif
+
 
 #define BOOT_PRG_COLOR    0xE68B
 #define BOOT_TXT_COLOR    0xFFFF

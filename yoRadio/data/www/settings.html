@@ -231,14 +231,27 @@
         <section class="group group_bt hidden" id="group_bt">
           <div class="title"><span>bluetooth</span></div>
           <div class="playlist" id="group_bt_box">
+
+            <div class="flex-row">
+                <div class="checkbox off nous" id="bt_sink_mode">enable bluetooth sink mode</div>
+            </div>
+
+            <div class="flex-row hidden" id="bt_sinknamerow">
+              <div class="inputwrap">
+                <span class="inputtitle">Sink name</span>
+                <input type="text" id="bt_sinkname" class="textinput inputchange" name="bt_sinkname" value="" maxlength="24" />
+              </div>
+              <div class="button apply hlbutton" data-name="bt_sinknamesave" style=" margin-top: 24px; height: 37px;">save</div>
+            </div>
+
           <section class="bt_list" id="bt_list" data-name="bt_list"></section>
-            <div class="flex-row center" id="loader"><span class="loader"></span></div>
+            <div class="flex-row center" id="bt_loader"><span class="loader"></span></div>
           </div>
 
           <div class="bt_dialog_box hidden" id="bt_dialog_box">
             <div class="title"><span>warning</span></div><div class="bt_button_cancel" data-name="bt_button" id="bt_box_cancel">x</div>
             <div class="flex-row center bt_name bt_box_line"><span id="bt_dialog_box_eir"></span></div>
-            <div class="flex-row center bt_box_line">Do you want disconnect or forget this sink?</div>
+            <div class="flex-row center bt_box_line" id="bt_dlgbox_text" ></div>
             <div class="bt_dialog_boxbuttons">
               <div class="flex-row" id="bt_current_line">
                 <span><div class="bt_button" id="bt_button_discon" data-name="bt_button" cmd="5">Disconnect</div></span>
