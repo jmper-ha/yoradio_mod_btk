@@ -21,9 +21,11 @@ I don't have any other displays.
 
 ## Bluetooth source
 The Bluetooth transmitter based on an additional **ESP32-WROOM** module. It is connected via **I2s** in parallel to the **DAC**. Communication with the main module on the **ESP32-Wrover** via **uart** plus one pin is used to **mute** the main **DAC** when a Bluetooth speaker connected. Bluetooth devices are remembered in memory and the next time the connects automatically. A special block has been added on the settings page to control devices. 
+
 <img src="images/bt.png">
 
 It is possible to "forget" some speaker. 
+
 <img src="images/bt_d.png">
 
 When external bt speaker connected, the main **DAC** goes silent and bt icon appears on the screen.When the speaker disconnected, the sound continues from the main **DAC**. 
@@ -31,10 +33,15 @@ On the **PCM5102** board, you need to remove the H3L jumper so that the mute wor
 
 ## Bluetooth sink
 The Bluetooth receiver is built on the same module as the transmitter. You can enable synk mode in **Settings** -> **Bluetooth** -> **Enable bluetoots sink mode**.  You can also set the name of device there.
+
 <img src="images/bt_sink_setup.png"> 
+
 Switching modes is possible both via the web and the encoder. 
+
 <img src="images/bt_sink.png">
+
 If the player supports metadata, it will be transmitted to the screen. 
+
 <img src="images/bt_sink_displ.jpeg">
 
 [source code and binaries](https://github.com/jmper-ha/bt_source)
